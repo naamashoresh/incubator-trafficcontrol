@@ -376,6 +376,12 @@ sub api_routes {
 	my $version   = shift;
 	my $namespace = shift;
 
+	# -- 1.1 API ROUTES
+
+	$r->get("/api/1.1/asns")->over( authenticated => 1 )->to( 'Asn#index_v11', namespace => $namespace );
+
+	# -- 1.1 or 1.2 API ROUTES
+
 	# -- ASNS (CRANS)
 	$r->get("/api/$version/asns")->over( authenticated => 1 )->to( 'Asn#index',     namespace => $namespace );
 	$r->get("/api/$version/asns/:id" => [ id => qr/\d+/ ] )->over( authenticated => 1 )->to( 'Asn#show', namespace => $namespace );
@@ -704,8 +710,11 @@ sub api_routes {
 	$r->get("/api/$version/servers/details")->over( authenticated => 1 )->to( 'Server#details', namespace => $namespace );
 	$r->get("/api/$version/servers/hostname/:name/details")->over( authenticated => 1 )->to( 'Server#details_v11', namespace => $namespace );
 
-	# -- SERVERS: TOTALS
+	# -- SERVERS: COUNT BY TYPE
 	$r->get("/api/$version/servers/totals")->over( authenticated => 1 )->to( 'Server#totals', namespace => $namespace );
+
+	# -- SERVERS: COUNT BY STATUS
+	$r->get("/api/$version/servers/status")->over( authenticated => 1 )->to( 'Server#status', namespace => $namespace );
 
 	# -- SERVERS: QUEUE/DEQUEUE SERVER UPDATES
 	$r->post("/api/$version/servers/:id/queue_update" => [ id => qr/\d+/ ] )->over( authenticated => 1 )->to( 'Server#postupdatequeue', namespace => $namespace );
@@ -912,9 +921,13 @@ sub traffic_stats_routes {
 	my $version   = shift;
 	my $namespace = "Extensions::TrafficStats::API";
 
-	$r->get("/api/$version/cdns/usage/overview")->to( 'CdnStats#get_usage_overview', namespace => $namespace );
+	# authenticated
 	$r->get("/api/$version/deliveryservice_stats")->over( authenticated => 1 )->to( 'DeliveryServiceStats#index', namespace => $namespace );
 	$r->get("/api/$version/cache_stats")->over( authenticated => 1 )->to( 'CacheStats#index', namespace => $namespace );
+	$r->get("/api/$version/current_stats")->over( authenticated => 1 )->to( 'CacheStats#current_stats', namespace => $namespace );
+
+	# unauthenticated
+	$r->get("/api/$version/cdns/usage/overview")->to( 'CdnStats#get_usage_overview', namespace => $namespace );
 	$r->get("internal/api/$version/daily_summary")->to( 'CacheStats#daily_summary', namespace => $namespace );
 	$r->get("internal/api/$version/current_stats")->to( 'CacheStats#current_stats', namespace => $namespace );
 }

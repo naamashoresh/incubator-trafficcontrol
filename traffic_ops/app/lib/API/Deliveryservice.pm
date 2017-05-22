@@ -69,7 +69,18 @@ sub index {
 		# build example urls for each delivery service
 		my @example_urls = ();
 		my $cdn_domain   = $row->cdn->domain_name;
-		my $regexp_set   = $self->get_regexp_set( $row->deliveryservice_regexes );
+		my $ds_regexes = $row->deliveryservice_regexes;
+		my $regexp_set;
+		my $i = 0;
+
+		while ( my $ds_regex = $ds_regexes->next ) {
+			$regexp_set->[$i]->{id}         = $ds_regex->id;
+			$regexp_set->[$i]->{pattern}    = $ds_regex->regex->pattern;
+			$regexp_set->[$i]->{type}    	= $ds_regex->regex->type->name;
+			$regexp_set->[$i]->{set_number} = $ds_regex->set_number;
+			$i++;
+		}
+
 		@example_urls = &UI::DeliveryService::get_example_urls( $self, $row->id, $regexp_set, $row, $cdn_domain, $row->protocol );
 
 		push(
@@ -171,7 +182,19 @@ sub show {
 		# build example urls for the delivery service
 		my @example_urls = ();
 		my $cdn_domain   = $row->cdn->domain_name;
-		my $regexp_set   = $self->get_regexp_set( $row->deliveryservice_regexes );
+
+		$ds_regexes->reset; # need to reset the curson
+		my $regexp_set;
+		my $i = 0;
+
+		while ( my $ds_regex = $ds_regexes->next ) {
+			$regexp_set->[$i]->{id}         = $ds_regex->id;
+			$regexp_set->[$i]->{pattern}    = $ds_regex->regex->pattern;
+			$regexp_set->[$i]->{type}    	= $ds_regex->regex->type->name;
+			$regexp_set->[$i]->{set_number} = $ds_regex->set_number;
+			$i++;
+		}
+
 		@example_urls = &UI::DeliveryService::get_example_urls( $self, $row->id, $regexp_set, $row, $cdn_domain, $row->protocol );
 
 		push(
@@ -999,26 +1022,26 @@ sub is_deliveryservice_valid {
 
 		# Validation checks to perform
 		checks => [
-			active               => [ is_required("is required") ],
+			xmlId                => [ is_required("is required"), is_like( qr/^\S*$/, "no spaces" ), is_long_at_most( 48, 'too long' ) ],
+			typeId               => [ is_required("is required") ],
 			cdnId                => [ is_required("is required") ],
+			active               => [ is_required("is required") ],
 			displayName          => [ is_required("is required"), is_long_at_most( 48, 'too long' ) ],
-			dscp                 => [ is_required("is required") ],
-			geoLimit             => [ is_required("is required") ],
-			geoProvider          => [ is_required("is required") ],
-			initialDispersion    => [ is_required("is required") ],
+			dscp                 => [ is_required("is required"), is_like( qr/^\d+$/, "digits only" ) ],
+			geoLimit             => [ is_required("is required"), is_like( qr/^\d+$/, "digits only" ) ],
+			geoProvider          => [ is_required("is required"), is_like( qr/^\d+$/, "digits only" ) ],
+			initialDispersion    => [ is_required("is required"), is_like( qr/^\d+$/, "digits only" ) ],
 			ipv6RoutingEnabled   => [ is_required("is required") ],
 			logsEnabled          => [ is_required("is required") ],
 			missLat              => [ \&is_valid_lat ],
 			missLong             => [ \&is_valid_long ],
 			multiSiteOrigin      => [ is_required("is required") ],
-			orgServerFqdn        => [ is_required("is required"), is_like( qr/^(https?:\/\/)/, "must start with http:// or https://" ) ],
-			protocol             => [ is_required("is required") ],
-			qstringIgnore        => [ is_required("is required") ],
-			rangeRequestHandling => [ is_required("is required") ],
+			orgServerFqdn        => [ sub { is_valid_org_server_fqdn($self, @_) } ],
+			protocol             => [ is_required("is required"), is_like( qr/^\d+$/, "digits only" ) ],
+			qstringIgnore        => [ is_required("is required"), is_like( qr/^\d+$/, "digits only" ) ],
+			rangeRequestHandling => [ is_required("is required"), is_like( qr/^\d+$/, "digits only" ) ],
 			regionalGeoBlocking  => [ is_required("is required") ],
 			signed               => [ is_required("is required") ],
-			typeId               => [ is_required("is required") ],
-			xmlId                => [ is_required("is required"), is_like( qr/^\S*$/, "no spaces" ), is_long_at_most( 48, 'too long' ) ],
 		]
 	};
 
@@ -1075,6 +1098,24 @@ sub is_valid_long {
 
 	if ( abs $value > 180 ) {
 		return "invalid. May not exceed +- 180.0.";
+	}
+
+	return undef;
+}
+
+sub is_valid_org_server_fqdn {
+	my $self    = shift;
+	my ( $value, $params ) = @_;
+
+	if ( (!defined $value or $value eq '') ) {
+		my $type_name = $self->db->resultset("Type")->find( { id => $params->{typeId} } )->get_column('name') // undef;
+		if ( defined($type_name) && ( $type_name =~ /(^ANY_MAP$|^.*STEERING.*$)/ ) ) {
+			return undef;
+		}
+	}
+
+	if ( !( $value =~ /^(https?:\/\/)/ ) ) {
+		return "invalid. Must start with http:// or https://.";
 	}
 
 	return undef;
